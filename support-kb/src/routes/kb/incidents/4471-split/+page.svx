@@ -1,0 +1,72 @@
+---
+layout: runbook
+title: '#4471 · what the merge held: three problems, not one'
+owner: support desk
+status: living
+reviewed: 2026-10-31
+signature: v1.eyJzdWIiOiIyMzQ4IiwiYXVkIjoiY2hhbGxlbmdlOndoYXQtaXQtc2hvd3MiLCJpYXQiOjE3OTM3MTkzNTQsImV4cCI6MTc5MzgwNTc1NH0.5i49x5g1N-UqKTguexm4MsaegwTA3V3cUkygUxXdVro
+---
+
+<script>
+  import Callout from '#lib/kb/Callout.svelte';
+  import RenderStamp from '#lib/kb/RenderStamp.svelte';
+</script>
+
+[#4471](/kb/incidents/4471) says one issue and one fix. The 412 reports merged into it are not
+one issue. Read against the tenant directory (locale and booking form), they split into three
+problems. Only the first is the parser bug the ticket describes.
+
+<Callout>
+The parser fix will not stop reports 2 and 3. Two problems have no ticket of their own until the
+tickets below are filed.
+</Callout>
+
+## The three problems
+
+| # | problem | reports | tenants | seen |
+|---|---------|---------|---------|------|
+| 1 | The shared parser reads every date month first, so day-first tenants get flipped dates | 374 | 11 | 2026-04-01 → 2026-10-04 |
+| 2 | Booking form v3 prints `MM/DD/YYYY` under the date field, so people in day-first tenants type month first | 33 | 3 | 2026-04-17 → 2026-09-22 |
+| 3 | An invite lands one day off, with no month flip: a time zone or day boundary problem | 5 | 5 | 2026-04-02 → 2026-10-04 |
+
+374 + 33 + 5 = 412. The export holds 427 rows because its pages overlap; 15 reports appear
+twice and are counted once.
+
+## How to tell them apart
+
+- **Look up the tenant, not the report.** Every tenant in the directory writes day first. Whether
+  the cause is the parser or the form hint depends on which booking form the tenant runs and how
+  the report arrived. Only a report that came through a `booking-v3` form is problem 2. The
+  parser flips every other day-first report.
+- **Intake's tag is a guess.** It is made from the reporter's browser. 23 reports it tagged as
+  `hint` are the parser bug, and 15 it tagged as `parser` are the form hint.
+- **Read the body for the one-day group.** Reports 3 are the desk's own "read as a one-day move"
+  list. A month flip changes the month. These change the day only: the same meeting gives two
+  clients in two cities two different days; an invite arrives before the booking was made; a
+  Tuesday shows as Monday. These five are different from each other, so treat the shared cause
+  as a hypothesis until engineering reproduces it.
+
+## Why the merge hid this
+
+[Decision 0001](/kb/decisions/0001-dedupe-by-subject) merges reports on subject line alone. The
+subjects here are things like "Wrong day on the invite", which fit all three problems. Merging
+on subject is fast, but it counts three bugs once and hides two of them. The reports were
+merged into #4471 months before anyone read the bodies; the oldest merge in the export is dated
+2026-07-02.
+
+## What to do
+
+1. File one ticket per problem (the tickets for this page are in the repository's issues).
+2. Move reports 2 and 3 out of #4471, so the parser fix closes only what it fixes.
+3. Reopen the question in decision 0001: when two reports share a subject, check the tenant's
+   locale and booking form before merging. A new record replaces 0001; 0001 is not edited.
+
+## Lessons
+
+- A big ticket is mostly one bug reported many times, until it isn't. Count the causes before
+  you merge, not after.
+- A number that can be computed should be computed. These counts come from
+  `analysis/count.mjs`, which reads the export and prints them; re-run it when the export
+  changes.
+
+<RenderStamp {signature} />
